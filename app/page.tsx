@@ -55,6 +55,7 @@ export default function Home() {
   const [attendanceByDate, setAttendanceByDate] = useState<Record<string, number[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
+  const shouldShowBottomNavigation = !isDatePickerOpen && !editingMember;
 
   const initials = useMemo(() => getInitials(name || "Novo membro"), [name]);
   const filteredMembers = useMemo(() => {
@@ -310,7 +311,9 @@ export default function Home() {
           />
         ) : null}
 
-        <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+        {shouldShowBottomNavigation ? (
+          <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+        ) : null}
       </section>
     </main>
   );
