@@ -307,7 +307,6 @@ export default function Home() {
             closeEditMember={closeEditMember}
             openEditMember={openEditMember}
             saveEditedMember={saveEditedMember}
-            setActiveTab={setActiveTab}
             setEditDescription={setEditDescription}
             setEditKind={setEditKind}
             setEditName={setEditName}
@@ -577,7 +576,6 @@ function MembersSearchScreen({
   openEditMember,
   results,
   saveEditedMember,
-  setActiveTab,
   setEditDescription,
   setEditKind,
   setEditName,
@@ -598,7 +596,6 @@ function MembersSearchScreen({
   openEditMember: (member: Member) => void;
   results: Member[];
   saveEditedMember: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
-  setActiveTab: (tab: ActiveTab) => void;
   setEditDescription: (value: string) => void;
   setEditKind: (value: MemberKind) => void;
   setEditName: (value: string) => void;
@@ -695,7 +692,6 @@ function MembersSearchScreen({
           editName={editName}
           editPhone={editPhone}
           saveEditedMember={saveEditedMember}
-          setActiveTab={setActiveTab}
           setEditDescription={setEditDescription}
           setEditKind={setEditKind}
           setEditName={setEditName}
@@ -713,7 +709,6 @@ function EditMemberSheet({
   editName,
   editPhone,
   saveEditedMember,
-  setActiveTab,
   setEditDescription,
   setEditKind,
   setEditName,
@@ -725,7 +720,6 @@ function EditMemberSheet({
   editName: string;
   editPhone: string;
   saveEditedMember: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
-  setActiveTab: (tab: ActiveTab) => void;
   setEditDescription: (value: string) => void;
   setEditKind: (value: MemberKind) => void;
   setEditName: (value: string) => void;
@@ -795,10 +789,6 @@ function EditMemberSheet({
             Salvar alterações
           </button>
         </div>
-        <button className="secondary-sheet-action" type="button" onClick={() => setActiveTab("presenca")}>
-          <UserCheck size={16} />
-          Marcar presença
-        </button>
       </form>
     </div>
   );
