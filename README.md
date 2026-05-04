@@ -10,14 +10,14 @@ Aplicacao mobile-first em Next.js para cadastrar membros de uma comunidade, marc
 - Resumo filtrado por data, com presentes, ausentes e distribuicao por grupo.
 - Geracao de PDF com o resumo do encontro.
 - PWA com manifest, icone e service worker basico.
-- Persistencia em MySQL via rotas API do Next.js.
+- Persistencia em Neon Postgres via rotas API do Next.js.
 
 ## Stack
 
 - Next.js 16 com App Router
 - React 19
 - TypeScript
-- MySQL com `mysql2`
+- Neon Postgres com `@neondatabase/serverless`
 - `jspdf` para exportacao de PDF
 - `lucide-react` para icones
 
@@ -35,9 +35,9 @@ app/
   manifest.ts             # Web App Manifest
   page.tsx                # Telas da aplicacao
 db/
-  schema.sql              # Tabelas MySQL
+  schema.sql              # Tabelas PostgreSQL para Neon
 lib/
-  db.ts                   # Pool de conexao MySQL
+  db.ts                   # Cliente Neon Postgres
 public/
   icon.svg
   sw.js
@@ -60,18 +60,13 @@ cp .env.example .env.local
 Configure as variaveis:
 
 ```env
-MYSQL_HOST=127.0.0.1
-MYSQL_PORT=3306
-MYSQL_USER=community_user
-MYSQL_PASSWORD=community_password
-MYSQL_DATABASE=community_checkin
+DATABASE_URL=postgresql://USER:PASSWORD@EP-EXAMPLE-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
 ```
 
-Crie o banco e aplique o schema:
+Crie o banco no Neon e aplique o schema:
 
 ```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS community_checkin;"
-mysql -u root -p community_checkin < db/schema.sql
+psql "$DATABASE_URL" -f db/schema.sql
 ```
 
 Rode o servidor:
@@ -87,6 +82,21 @@ http://localhost:3000
 ```
 
 ## Banco de Dados
+
+Para deploy no Vercel, use um banco Neon acessivel pela internet. A aplicacao agora usa uma unica variavel `DATABASE_URL`, exatamente no formato entregue pelo painel do Neon.
+
+### Deploy no Vercel
+
+1. Suba o repositório no GitHub.
+2. Importe o projeto no Vercel.
+3. No Neon, crie um projeto e copie a `DATABASE_URL`.
+4. No Vercel, configure a variavel `DATABASE_URL`.
+5. Execute o schema `db/schema.sql` no banco remoto antes de abrir a aplicacao.
+
+Observacoes para producao:
+
+- As rotas API usam runtime Node.js e o driver `@neondatabase/serverless`, recomendado para Neon em ambientes serverless.
+- As mensagens da interface nao assumem mais um banco local especifico, entao ficam mais naturais em producao.
 
 ### `members`
 
@@ -184,7 +194,7 @@ Use `present: false` para remover a presenca.
 
 ## Fluxo da Aplicacao
 
-1. Cadastro carrega membros do MySQL.
+1. Cadastro carrega membros do Neon Postgres.
 2. Ao salvar um membro, a app envia `POST /api/members`.
 3. A aba Presenca carrega a lista de membros e as presencas da data selecionada.
 4. Marcar/desmarcar presenca envia `PUT /api/attendance`.
@@ -213,7 +223,7 @@ npm run lint     # lint
 
 ## Observacoes
 
-- Sem `.env.local` configurado ou sem MySQL ativo, a UI mostra mensagens de erro de conexao.
+- Sem `.env.local` configurado ou sem Neon acessivel, a UI mostra mensagens de erro de conexao.
 - O service worker atual faz cache basico do app shell.
 - A aplicacao ainda nao possui autenticacao.
 - O Pencil em `app.pen` contem o prototipo visual sincronizado com as telas atuais.

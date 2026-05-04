@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getPool } from "@/lib/db";
-import { RowDataPacket } from "mysql2";
+import { getSql } from "@/lib/db";
+
+export const runtime = "nodejs";
 
 type AttendancePayload = {
   date?: string;
@@ -13,47 +14,64 @@ function isDate(value: string | undefined) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date") ?? undefined;
+  try {
+    const sql = getSql();
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get("date") ?? undefined;
 
-  if (!isDate(date)) {
-    return NextResponse.json({ error: "Data invalida." }, { status: 400 });
+    if (!isDate(date)) {
+      return NextResponse.json({ error: "Data invalida." }, { status: 400 });
+    }
+    const attendanceDate = date as string;
+
+    const rows = (await sql`
+      SELECT member_id
+      FROM attendance
+      WHERE attendance_date = ${attendanceDate}
+      ORDER BY member_id
+    `) as { member_id: number }[];
+
+    return NextResponse.json({ date: attendanceDate, presentIds: rows.map((row) => row.member_id) });
+  } catch (error) {
+    return handleRouteError(error);
   }
-  const attendanceDate = date as string;
-
-  const [rows] = await getPool().execute<(RowDataPacket & { member_id: number })[]>(
-    `SELECT member_id
-     FROM attendance
-     WHERE attendance_date = ?
-     ORDER BY member_id`,
-    [attendanceDate],
-  );
-
-  return NextResponse.json({ date: attendanceDate, presentIds: rows.map((row) => row.member_id) });
 }
 
 export async function PUT(request: Request) {
-  const payload = (await request.json()) as AttendancePayload;
+  try {
+    const sql = getSql();
+    const payload = (await request.json()) as AttendancePayload;
 
-  if (!isDate(payload.date) || !payload.memberId || typeof payload.present !== "boolean") {
-    return NextResponse.json({ error: "Presenca invalida." }, { status: 400 });
+    if (!isDate(payload.date) || !payload.memberId || typeof payload.present !== "boolean") {
+      return NextResponse.json({ error: "Presenca invalida." }, { status: 400 });
+    }
+    const attendanceDate = payload.date as string;
+    const memberId = payload.memberId;
+
+    if (payload.present) {
+      await sql`
+        INSERT INTO attendance (member_id, attendance_date)
+        VALUES (${memberId}, ${attendanceDate})
+        ON CONFLICT (member_id, attendance_date) DO NOTHING
+      `;
+    } else {
+      await sql`
+        DELETE FROM attendance
+        WHERE member_id = ${memberId} AND attendance_date = ${attendanceDate}
+      `;
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return handleRouteError(error);
   }
-  const attendanceDate = payload.date as string;
-  const memberId = payload.memberId;
+}
 
-  if (payload.present) {
-    await getPool().execute(
-      `INSERT IGNORE INTO attendance (member_id, attendance_date)
-       VALUES (?, ?)`,
-      [memberId, attendanceDate],
-    );
-  } else {
-    await getPool().execute(
-      `DELETE FROM attendance
-       WHERE member_id = ? AND attendance_date = ?`,
-      [memberId, attendanceDate],
-    );
-  }
+function handleRouteError(error: unknown) {
+  console.error("Attendance API error", error);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(
+    { error: "Nao foi possivel processar a requisicao de presenca." },
+    { status: 500 },
+  );
 }

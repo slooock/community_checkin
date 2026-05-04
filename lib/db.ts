@@ -1,24 +1,25 @@
-import mysql from "mysql2/promise";
+import { neon } from "@neondatabase/serverless";
 
-const globalForMysql = globalThis as typeof globalThis & {
-  mysqlPool?: mysql.Pool;
+const globalForDb = globalThis as typeof globalThis & {
+  neonSql?: ReturnType<typeof neon>;
 };
 
-export function getPool() {
-  if (!globalForMysql.mysqlPool) {
-    globalForMysql.mysqlPool = mysql.createPool({
-      host: process.env.MYSQL_HOST,
-      port: Number(process.env.MYSQL_PORT ?? 3306),
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD,
-      database: process.env.MYSQL_DATABASE,
-      waitForConnections: true,
-      connectionLimit: 10,
-      namedPlaceholders: true,
-    });
+function getRequiredEnv(name: string) {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`Missing required database environment variable: ${name}`);
   }
 
-  return globalForMysql.mysqlPool;
+  return value;
+}
+
+export function getSql() {
+  if (!globalForDb.neonSql) {
+    globalForDb.neonSql = neon(getRequiredEnv("DATABASE_URL"));
+  }
+
+  return globalForDb.neonSql;
 }
 
 export type MemberRow = {

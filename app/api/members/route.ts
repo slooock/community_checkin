@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { ResultSetHeader, RowDataPacket } from "mysql2";
-import { getPool, MemberRow } from "@/lib/db";
+import { getSql, MemberRow } from "@/lib/db";
+
+export const runtime = "nodejs";
 
 type MemberPayload = {
   name?: string;
@@ -13,85 +14,84 @@ type MemberPayload = {
 const allowedKinds = new Set(["Adulto", "Jovem", "Convidado"]);
 
 export async function GET() {
-  const [rows] = await getPool().query<(MemberRow & RowDataPacket)[]>(
-    `SELECT id, name, phone, kind, region, description
-     FROM members
-     ORDER BY id DESC`,
-  );
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT id, name, phone, kind, region, description
+      FROM members
+      ORDER BY id DESC
+    `) as MemberRow[];
 
-  return NextResponse.json(rows.map(normalizeMember));
+    return NextResponse.json(rows.map(normalizeMember));
+  } catch (error) {
+    return handleRouteError(error);
+  }
 }
 
 export async function POST(request: Request) {
-  const payload = (await request.json()) as MemberPayload;
-  const name = payload.name?.trim();
-  const kind = payload.kind;
+  try {
+    const sql = getSql();
+    const payload = (await request.json()) as MemberPayload;
+    const name = payload.name?.trim();
+    const kind = payload.kind;
 
-  if (!name || !kind || !allowedKinds.has(kind)) {
-    return NextResponse.json({ error: "Nome e etiqueta sao obrigatorios." }, { status: 400 });
+    if (!name || !kind || !allowedKinds.has(kind)) {
+      return NextResponse.json({ error: "Nome e etiqueta sao obrigatorios." }, { status: 400 });
+    }
+
+    const region = payload.region?.trim() || (kind === "Convidado" ? "Recepcao" : "Comunidade");
+    const rows = (await sql`
+      INSERT INTO members (name, phone, kind, region, description)
+      VALUES (
+        ${name},
+        ${payload.phone?.trim() || null},
+        ${kind},
+        ${region},
+        ${payload.description?.trim() || null}
+      )
+      RETURNING id, name, phone, kind, region, description
+    `) as MemberRow[];
+
+    return NextResponse.json(normalizeMember(rows[0]), { status: 201 });
+  } catch (error) {
+    return handleRouteError(error);
   }
-
-  const region = payload.region?.trim() || (kind === "Convidado" ? "Recepcao" : "Comunidade");
-  const [result] = await getPool().execute<ResultSetHeader>(
-    `INSERT INTO members (name, phone, kind, region, description)
-     VALUES (?, ?, ?, ?, ?)`,
-    [
-      name,
-      payload.phone?.trim() || null,
-      kind,
-      region,
-      payload.description?.trim() || null,
-    ],
-  );
-
-  const [rows] = await getPool().execute<(MemberRow & RowDataPacket)[]>(
-    `SELECT id, name, phone, kind, region, description
-     FROM members
-     WHERE id = ?`,
-    [result.insertId],
-  );
-
-  return NextResponse.json(normalizeMember(rows[0]), { status: 201 });
 }
 
 export async function PATCH(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = Number(searchParams.get("id"));
-  const payload = (await request.json()) as MemberPayload;
-  const name = payload.name?.trim();
-  const kind = payload.kind;
+  try {
+    const sql = getSql();
+    const { searchParams } = new URL(request.url);
+    const id = Number(searchParams.get("id"));
+    const payload = (await request.json()) as MemberPayload;
+    const name = payload.name?.trim();
+    const kind = payload.kind;
 
-  if (!id || !name || !kind || !allowedKinds.has(kind)) {
-    return NextResponse.json({ error: "Membro, nome e etiqueta sao obrigatorios." }, { status: 400 });
+    if (!id || !name || !kind || !allowedKinds.has(kind)) {
+      return NextResponse.json({ error: "Membro, nome e etiqueta sao obrigatorios." }, { status: 400 });
+    }
+
+    const region = payload.region?.trim() || (kind === "Convidado" ? "Recepcao" : "Comunidade");
+    const rows = (await sql`
+      UPDATE members
+      SET
+        name = ${name},
+        phone = ${payload.phone?.trim() || null},
+        kind = ${kind},
+        region = ${region},
+        description = ${payload.description?.trim() || null}
+      WHERE id = ${id}
+      RETURNING id, name, phone, kind, region, description
+    `) as MemberRow[];
+
+    if (!rows[0]) {
+      return NextResponse.json({ error: "Membro nao encontrado." }, { status: 404 });
+    }
+
+    return NextResponse.json(normalizeMember(rows[0]));
+  } catch (error) {
+    return handleRouteError(error);
   }
-
-  const region = payload.region?.trim() || (kind === "Convidado" ? "Recepcao" : "Comunidade");
-  await getPool().execute(
-    `UPDATE members
-     SET name = ?, phone = ?, kind = ?, region = ?, description = ?
-     WHERE id = ?`,
-    [
-      name,
-      payload.phone?.trim() || null,
-      kind,
-      region,
-      payload.description?.trim() || null,
-      id,
-    ],
-  );
-
-  const [rows] = await getPool().execute<(MemberRow & RowDataPacket)[]>(
-    `SELECT id, name, phone, kind, region, description
-     FROM members
-     WHERE id = ?`,
-    [id],
-  );
-
-  if (!rows[0]) {
-    return NextResponse.json({ error: "Membro nao encontrado." }, { status: 404 });
-  }
-
-  return NextResponse.json(normalizeMember(rows[0]));
 }
 
 function normalizeMember(member: MemberRow) {
@@ -103,4 +103,13 @@ function normalizeMember(member: MemberRow) {
     region: member.region ?? "",
     description: member.description ?? "",
   };
+}
+
+function handleRouteError(error: unknown) {
+  console.error("Members API error", error);
+
+  return NextResponse.json(
+    { error: "Nao foi possivel processar a requisicao de membros." },
+    { status: 500 },
+  );
 }

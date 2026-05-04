@@ -35,6 +35,13 @@ type MemberFilter = "Todos" | MemberKind;
 
 const memberKinds: MemberKind[] = ["Adulto", "Jovem", "Convidado"];
 
+function getTodayDate() {
+  const now = new Date();
+  const timezoneOffset = now.getTimezoneOffset() * 60_000;
+
+  return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
+}
+
 export default function Home() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -50,7 +57,7 @@ export default function Home() {
   const [editPhone, setEditPhone] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editKind, setEditKind] = useState<MemberKind>("Adulto");
-  const [selectedDate, setSelectedDate] = useState("2026-05-04");
+  const [selectedDate, setSelectedDate] = useState(() => getTodayDate());
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [attendanceByDate, setAttendanceByDate] = useState<Record<string, number[]>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -105,7 +112,7 @@ export default function Home() {
         }
       } catch {
         if (!ignore) {
-          setStatusMessage("Nao foi possivel carregar o MySQL. Confira o .env e o schema.");
+          setStatusMessage("Nao foi possivel carregar os membros agora.");
         }
       } finally {
         if (!ignore) setIsLoading(false);
@@ -173,7 +180,7 @@ export default function Home() {
       setStatusMessage("");
       setActiveTab("presenca");
     } catch {
-      setStatusMessage("Nao foi possivel salvar o membro no MySQL.");
+      setStatusMessage("Nao foi possivel salvar o membro agora.");
     }
   }
 
@@ -196,7 +203,7 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: selectedDate, memberId, present: willBePresent }),
     }).catch(() => {
-      setStatusMessage("Nao foi possivel atualizar a presenca no MySQL.");
+      setStatusMessage("Nao foi possivel atualizar a presenca agora.");
     });
   }
 
@@ -234,7 +241,7 @@ export default function Home() {
       setStatusMessage("");
       closeEditMember();
     } catch {
-      setStatusMessage("Nao foi possivel editar o membro no MySQL.");
+      setStatusMessage("Nao foi possivel editar o membro agora.");
     }
   }
 
@@ -361,7 +368,7 @@ function RegistrationScreen({
 
           <div className="announcement">
             <Sparkles size={15} />
-            <span>{isLoading ? "Conectando ao MySQL..." : "Novo ciclo de presença aberto"}</span>
+            <span>{isLoading ? "Conectando ao banco..." : "Novo ciclo de presença aberto"}</span>
           </div>
 
           {statusMessage ? <div className="status-message">{statusMessage}</div> : null}
@@ -617,7 +624,7 @@ function MembersSearchScreen({
 
       <div className="db-chip">
         <Badge size={16} />
-        <span>Busca carregada do MySQL</span>
+        <span>Busca carregada do banco</span>
       </div>
 
       {statusMessage ? <div className="status-message">{statusMessage}</div> : null}
