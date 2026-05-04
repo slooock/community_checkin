@@ -82,10 +82,19 @@ button {
 }
 
 .screen-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 12px 20px;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  margin: -12px -20px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .screen-header.compact {
@@ -707,9 +716,14 @@ h2 {
 }
 
 .edit-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
+  z-index: 50;
   display: flex;
   align-items: flex-end;
 }
@@ -990,9 +1004,14 @@ h2 {
 }
 
 .date-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
+  z-index: 50;
   display: flex;
   align-items: flex-end;
 }
@@ -1147,13 +1166,17 @@ h2 {
 }
 
 .bottom-nav {
-  position: absolute;
-  left: 0;
-  right: 0;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
   bottom: 0;
   z-index: 30;
-  padding: 12px 21px 21px;
-  background: var(--surface-primary);
+  padding: 12px 21px 24px;
+  background: linear-gradient(to top, var(--surface-primary) 60%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .bottom-pill {

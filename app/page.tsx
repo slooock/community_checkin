@@ -440,7 +440,7 @@ function RegistrationScreen({
 
             <button className="primary-action" type="submit">
               <Check size={18} />
-              Salvar membro
+              Adicionar
             </button>
           </form>
 
@@ -786,7 +786,7 @@ function EditMemberSheet({
           </button>
           <button type="submit">
             <Check size={18} />
-            Salvar alterações
+            Atualizar
           </button>
         </div>
       </form>
