@@ -2,7 +2,6 @@
 
 import {
   Badge,
-  BatteryFull,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -13,13 +12,11 @@ import {
   Phone,
   Search,
   Share2,
-  Signal,
   Sparkles,
   UserCheck,
   UserPlus,
-  Wifi,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type MemberKind = "Adulto" | "Jovem" | "Convidado";
 
@@ -34,33 +31,6 @@ type Member = {
 
 type ActiveTab = "cadastro" | "presenca" | "resumo";
 
-const initialMembers: Member[] = [
-  {
-    id: 1,
-    name: "Ana Martins",
-    phone: "(11) 99999-9999",
-    kind: "Adulto",
-    region: "Zona Norte",
-    description: "Participa do grupo de recepcao.",
-  },
-  {
-    id: 2,
-    name: "Rafael Souza",
-    phone: "(11) 98888-4444",
-    kind: "Jovem",
-    region: "Comunidade",
-    description: "Ajuda na organizacao dos encontros.",
-  },
-  {
-    id: 3,
-    name: "Bianca Lima",
-    phone: "(11) 97777-3333",
-    kind: "Convidado",
-    region: "Recepcao",
-    description: "Convidada pela Ana.",
-  },
-];
-
 const memberKinds: MemberKind[] = ["Adulto", "Jovem", "Convidado"];
 
 export default function Home() {
@@ -68,15 +38,14 @@ export default function Home() {
   const [phone, setPhone] = useState("");
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<MemberKind>("Adulto");
-  const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [members, setMembers] = useState<Member[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>("cadastro");
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState("2026-05-04");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [attendanceByDate, setAttendanceByDate] = useState<Record<string, number[]>>({
-    "2026-05-04": [1],
-    "2026-04-27": [1, 2],
-  });
+  const [attendanceByDate, setAttendanceByDate] = useState<Record<string, number[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState("");
 
   const initials = useMemo(() => getInitials(name || "Novo membro"), [name]);
   const filteredMembers = useMemo(() => {
@@ -97,50 +66,119 @@ export default function Home() {
   const presentCount = presentIds.size;
   const progress = members.length > 0 ? Math.round((presentCount / members.length) * 100) : 0;
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadMembers() {
+      setIsLoading(true);
+      try {
+        const response = await fetch("/api/members");
+        if (!response.ok) throw new Error("members");
+        const data = (await response.json()) as Member[];
+        if (!ignore) {
+          setMembers(data);
+          setStatusMessage("");
+        }
+      } catch {
+        if (!ignore) {
+          setStatusMessage("Nao foi possivel carregar o MySQL. Confira o .env e o schema.");
+        }
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
+
+    loadMembers();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadAttendance() {
+      try {
+        const response = await fetch(`/api/attendance?date=${selectedDate}`);
+        if (!response.ok) throw new Error("attendance");
+        const data = (await response.json()) as { date: string; presentIds: number[] };
+        if (!ignore) {
+          setAttendanceByDate((current) => ({ ...current, [data.date]: data.presentIds }));
+          setStatusMessage("");
+        }
+      } catch {
+        if (!ignore) {
+          setAttendanceByDate((current) => ({ ...current, [selectedDate]: current[selectedDate] ?? [] }));
+          setStatusMessage("Nao foi possivel carregar presencas desta data.");
+        }
+      }
+    }
+
+    loadAttendance();
+    return () => {
+      ignore = true;
+    };
+  }, [selectedDate]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const trimmedName = name.trim();
     if (!trimmedName) return;
 
-    setMembers((current) => [
-      {
-        id: Date.now(),
-        name: trimmedName,
-        phone: phone.trim(),
-        kind,
-        region: kind === "Convidado" ? "Recepcao" : "Comunidade",
-        description: description.trim(),
-      },
-      ...current,
-    ]);
-    setName("");
-    setPhone("");
-    setDescription("");
-    setKind("Adulto");
-    setActiveTab("presenca");
+    try {
+      const response = await fetch("/api/members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmedName,
+          phone,
+          kind,
+          region: kind === "Convidado" ? "Recepcao" : "Comunidade",
+          description,
+        }),
+      });
+      if (!response.ok) throw new Error("create");
+      const created = (await response.json()) as Member;
+
+      setMembers((current) => [created, ...current]);
+      setName("");
+      setPhone("");
+      setDescription("");
+      setKind("Adulto");
+      setStatusMessage("");
+      setActiveTab("presenca");
+    } catch {
+      setStatusMessage("Nao foi possivel salvar o membro no MySQL.");
+    }
   }
 
   function togglePresence(memberId: number) {
+    const willBePresent = !presentIds.has(memberId);
     setAttendanceByDate((current) => {
       const next = new Set(current[selectedDate] ?? []);
-      if (next.has(memberId)) {
-        next.delete(memberId);
-      } else {
+      if (willBePresent) {
         next.add(memberId);
+      } else {
+        next.delete(memberId);
       }
       return {
         ...current,
         [selectedDate]: Array.from(next),
       };
     });
+    fetch("/api/attendance", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: selectedDate, memberId, present: willBePresent }),
+    }).catch(() => {
+      setStatusMessage("Nao foi possivel atualizar a presenca no MySQL.");
+    });
   }
 
   return (
     <main className="phone-shell" aria-label="Aplicacao de comunidade">
       <section className="mobile-screen">
-        <StatusBar />
-
         {activeTab === "cadastro" ? (
           <RegistrationScreen
             description={description}
@@ -154,6 +192,8 @@ export default function Home() {
             setName={setName}
             setPhone={setPhone}
             onSubmit={handleSubmit}
+            isLoading={isLoading}
+            statusMessage={statusMessage}
           />
         ) : null}
 
@@ -167,6 +207,7 @@ export default function Home() {
             search={search}
             selectedDate={selectedDate}
             setSearch={setSearch}
+            statusMessage={statusMessage}
             togglePresence={togglePresence}
           />
         ) : null}
@@ -179,6 +220,7 @@ export default function Home() {
             selectedDate={selectedDate}
             setIsDatePickerOpen={setIsDatePickerOpen}
             setSelectedDate={setSelectedDate}
+            statusMessage={statusMessage}
           />
         ) : null}
 
@@ -200,6 +242,8 @@ function RegistrationScreen({
   setName,
   setPhone,
   onSubmit,
+  isLoading,
+  statusMessage,
 }: {
   description: string;
   initials: string;
@@ -211,13 +255,14 @@ function RegistrationScreen({
   setKind: (value: MemberKind) => void;
   setName: (value: string) => void;
   setPhone: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  isLoading: boolean;
+  statusMessage: string;
 }) {
   return (
     <div className="content-wrapper">
           <header className="screen-header">
             <div>
-              <p className="eyebrow">Comunidade</p>
               <h1>Cadastrar membro</h1>
             </div>
             <button className="icon-button" type="button" aria-label="Novo membro">
@@ -227,8 +272,10 @@ function RegistrationScreen({
 
           <div className="announcement">
             <Sparkles size={15} />
-            <span>Novo ciclo de presença aberto</span>
+            <span>{isLoading ? "Conectando ao MySQL..." : "Novo ciclo de presença aberto"}</span>
           </div>
+
+          {statusMessage ? <div className="status-message">{statusMessage}</div> : null}
 
           <form className="registration-card" onSubmit={onSubmit}>
             <label className="field-group">
@@ -332,6 +379,7 @@ function AttendanceScreen({
   search,
   selectedDate,
   setSearch,
+  statusMessage,
   togglePresence,
 }: {
   filteredMembers: Member[];
@@ -342,13 +390,13 @@ function AttendanceScreen({
   search: string;
   selectedDate: string;
   setSearch: (value: string) => void;
+  statusMessage: string;
   togglePresence: (memberId: number) => void;
 }) {
   return (
     <div className="content-wrapper attendance-content">
       <header className="screen-header compact">
         <div>
-          <p className="eyebrow">Check-in</p>
           <h1>Marcar presença</h1>
           <span className="screen-subtitle">{formatDate(selectedDate)}</span>
         </div>
@@ -363,6 +411,8 @@ function AttendanceScreen({
           type="search"
         />
       </label>
+
+      {statusMessage ? <div className="status-message">{statusMessage}</div> : null}
 
       <section className="progress-card" aria-label="Progresso de presenca">
         <div className="progress-header">
@@ -425,6 +475,7 @@ function SummaryScreen({
   selectedDate,
   setIsDatePickerOpen,
   setSelectedDate,
+  statusMessage,
 }: {
   members: Member[];
   attendanceByDate: Record<string, number[]>;
@@ -432,6 +483,7 @@ function SummaryScreen({
   selectedDate: string;
   setIsDatePickerOpen: (value: boolean) => void;
   setSelectedDate: (value: string) => void;
+  statusMessage: string;
 }) {
   const presentIds = useMemo(
     () => new Set(attendanceByDate[selectedDate] ?? []),
@@ -463,7 +515,6 @@ function SummaryScreen({
     <div className="content-wrapper summary-content">
       <header className="screen-header compact">
         <div>
-          <p className="eyebrow">Resumo</p>
           <h1>Encontro de hoje</h1>
         </div>
       </header>
@@ -477,6 +528,8 @@ function SummaryScreen({
           onClick={() => setIsDatePickerOpen(true)}
         />
       </label>
+
+      {statusMessage ? <div className="status-message">{statusMessage}</div> : null}
 
       <section className="summary-hero" aria-label="Total de presentes">
         <div className="summary-hero-top">
@@ -678,19 +731,6 @@ function DatePickerSheet({
           </button>
         </div>
       </section>
-    </div>
-  );
-}
-
-function StatusBar() {
-  return (
-    <div className="status-bar" aria-hidden="true">
-      <span>9:41</span>
-      <div>
-        <Signal size={15} />
-        <Wifi size={15} />
-        <BatteryFull size={18} />
-      </div>
     </div>
   );
 }
