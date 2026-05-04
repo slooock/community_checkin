@@ -1,0 +1,46 @@
+{
+  "version": "2.11",
+  "children": [],
+  "variables": {
+    "accent_primary": {
+      "type": "color",
+      "value": "#A855F7"
+    },
+    "accent_secondary": {
+      "type": "color",
+      "value": "#EC4899"
+    },
+    "accent_tertiary": {
+      "type": "color",
+      "value": "#06B6D4"
+    },
+    "border": {
+      "type": "color",
+      "value": "#27272A"
+    },
+    "font_body": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "font_captions": {
+      "type": "string",
+      "value": "Geist"
+    },
+    "font_headings": {
+      "type": "string",
+      "value": "Funnel Sans"
+    },
+    "muted": {
+      "type": "color",
+      "value": "#71717A"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#0A0A0A"
+    },
+    "text": {
+      "type": "color",
+      "value": "#FAFAFA"
+    }
+  }
+}
