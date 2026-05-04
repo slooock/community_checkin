@@ -13,6 +13,7 @@ import {
   Search,
   Share2,
   Sparkles,
+  Users,
   UserCheck,
   UserPlus,
 } from "lucide-react";
@@ -29,7 +30,8 @@ type Member = {
   description: string;
 };
 
-type ActiveTab = "cadastro" | "presenca" | "resumo";
+type ActiveTab = "resumo" | "cadastro" | "presenca" | "membros";
+type MemberFilter = "Todos" | MemberKind;
 
 const memberKinds: MemberKind[] = ["Adulto", "Jovem", "Convidado"];
 
@@ -41,6 +43,13 @@ export default function Home() {
   const [members, setMembers] = useState<Member[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>("cadastro");
   const [search, setSearch] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>("Todos");
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editKind, setEditKind] = useState<MemberKind>("Adulto");
   const [selectedDate, setSelectedDate] = useState("2026-05-04");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [attendanceByDate, setAttendanceByDate] = useState<Record<string, number[]>>({});
@@ -59,6 +68,20 @@ export default function Home() {
         .includes(term),
     );
   }, [members, search]);
+  const searchedMembers = useMemo(() => {
+    const term = memberSearch.trim().toLowerCase();
+    return members.filter((member) => {
+      const matchesKind = memberFilter === "Todos" || member.kind === memberFilter;
+      const matchesSearch =
+        !term ||
+        [member.name, member.phone, member.kind, member.region, member.description]
+          .join(" ")
+          .toLowerCase()
+          .includes(term);
+
+      return matchesKind && matchesSearch;
+    });
+  }, [members, memberFilter, memberSearch]);
   const presentIds = useMemo(
     () => new Set(attendanceByDate[selectedDate] ?? []),
     [attendanceByDate, selectedDate],
@@ -139,9 +162,9 @@ export default function Home() {
         }),
       });
       if (!response.ok) throw new Error("create");
-      const created = (await response.json()) as Member;
+      const saved = (await response.json()) as Member;
 
-      setMembers((current) => [created, ...current]);
+      setMembers((current) => [saved, ...current]);
       setName("");
       setPhone("");
       setDescription("");
@@ -174,6 +197,44 @@ export default function Home() {
     }).catch(() => {
       setStatusMessage("Nao foi possivel atualizar a presenca no MySQL.");
     });
+  }
+
+  function openEditMember(member: Member) {
+    setEditingMember(member);
+    setEditName(member.name);
+    setEditPhone(member.phone);
+    setEditDescription(member.description);
+    setEditKind(member.kind);
+  }
+
+  function closeEditMember() {
+    setEditingMember(null);
+  }
+
+  async function saveEditedMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingMember || !editName.trim()) return;
+
+    try {
+      const response = await fetch(`/api/members?id=${editingMember.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName,
+          phone: editPhone,
+          kind: editKind,
+          region: editKind === "Convidado" ? "Recepcao" : "Comunidade",
+          description: editDescription,
+        }),
+      });
+      if (!response.ok) throw new Error("update");
+      const saved = (await response.json()) as Member;
+      setMembers((current) => current.map((member) => (member.id === saved.id ? saved : member)));
+      setStatusMessage("");
+      closeEditMember();
+    } catch {
+      setStatusMessage("Nao foi possivel editar o membro no MySQL.");
+    }
   }
 
   return (
@@ -220,6 +281,31 @@ export default function Home() {
             selectedDate={selectedDate}
             setIsDatePickerOpen={setIsDatePickerOpen}
             setSelectedDate={setSelectedDate}
+            statusMessage={statusMessage}
+          />
+        ) : null}
+
+        {activeTab === "membros" ? (
+          <MembersSearchScreen
+            memberFilter={memberFilter}
+            memberSearch={memberSearch}
+            membersCount={members.length}
+            results={searchedMembers}
+            editingMember={editingMember}
+            editDescription={editDescription}
+            editKind={editKind}
+            editName={editName}
+            editPhone={editPhone}
+            closeEditMember={closeEditMember}
+            openEditMember={openEditMember}
+            saveEditedMember={saveEditedMember}
+            setActiveTab={setActiveTab}
+            setEditDescription={setEditDescription}
+            setEditKind={setEditKind}
+            setEditName={setEditName}
+            setEditPhone={setEditPhone}
+            setMemberFilter={setMemberFilter}
+            setMemberSearch={setMemberSearch}
             statusMessage={statusMessage}
           />
         ) : null}
@@ -464,6 +550,246 @@ function AttendanceScreen({
           </div>
         ) : null}
       </section>
+    </div>
+  );
+}
+
+function MembersSearchScreen({
+  closeEditMember,
+  editDescription,
+  editKind,
+  editingMember,
+  editName,
+  editPhone,
+  memberFilter,
+  memberSearch,
+  membersCount,
+  openEditMember,
+  results,
+  saveEditedMember,
+  setActiveTab,
+  setEditDescription,
+  setEditKind,
+  setEditName,
+  setEditPhone,
+  setMemberFilter,
+  setMemberSearch,
+  statusMessage,
+}: {
+  closeEditMember: () => void;
+  editDescription: string;
+  editKind: MemberKind;
+  editingMember: Member | null;
+  editName: string;
+  editPhone: string;
+  memberFilter: MemberFilter;
+  memberSearch: string;
+  membersCount: number;
+  openEditMember: (member: Member) => void;
+  results: Member[];
+  saveEditedMember: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  setActiveTab: (tab: ActiveTab) => void;
+  setEditDescription: (value: string) => void;
+  setEditKind: (value: MemberKind) => void;
+  setEditName: (value: string) => void;
+  setEditPhone: (value: string) => void;
+  setMemberFilter: (filter: MemberFilter) => void;
+  setMemberSearch: (value: string) => void;
+  statusMessage: string;
+}) {
+  const guestCount = results.filter((member) => member.kind === "Convidado").length;
+  const filters: MemberFilter[] = ["Todos", "Adulto", "Jovem", "Convidado"];
+
+  return (
+    <div className="content-wrapper members-content">
+      <header className="screen-header">
+        <div>
+          <h1>Pesquisar membros</h1>
+        </div>
+        <div className="count-badge" aria-label={`${membersCount} membros`}>
+          <strong>{membersCount}</strong>
+          <span>Membros</span>
+        </div>
+      </header>
+
+      <div className="db-chip">
+        <Badge size={16} />
+        <span>Busca carregada do MySQL</span>
+      </div>
+
+      {statusMessage ? <div className="status-message">{statusMessage}</div> : null}
+
+      <label className="search-shell">
+        <Search size={18} />
+        <input
+          value={memberSearch}
+          onChange={(event) => setMemberSearch(event.target.value)}
+          placeholder="Nome, telefone ou descricao"
+          type="search"
+        />
+      </label>
+
+      <div className="member-filters" aria-label="Filtros de membros">
+        {filters.map((filter) => (
+          <button
+            className={memberFilter === filter ? "active" : ""}
+            key={filter}
+            onClick={() => setMemberFilter(filter)}
+            type="button"
+          >
+            {filter === "Convidado" ? "Convid." : filter === "Todos" ? "Todos" : `${filter}s`}
+          </button>
+        ))}
+      </div>
+
+      <div className="result-summary">
+        <Search size={16} />
+        <span>
+          {results.length} membros encontrados · {guestCount} convidados
+        </span>
+      </div>
+
+      <section className="member-search-list" aria-label="Resultados da busca">
+        {results.slice(0, 5).map((member) => (
+          <button
+            className={editingMember?.id === member.id ? "member-search-row selected" : "member-search-row"}
+            key={member.id}
+            onClick={() => openEditMember(member)}
+            type="button"
+          >
+            <div className="avatar small">{getInitials(member.name)}</div>
+            <div>
+              <strong>{member.name}</strong>
+              <span>{member.phone || "Sem telefone"}</span>
+              <span>{member.kind}</span>
+              <small>{member.description || "Sem descricao cadastrada."}</small>
+            </div>
+            <span className="row-chevron">›</span>
+          </button>
+        ))}
+
+        {results.length === 0 ? (
+          <div className="empty-state compact-empty">
+            <Users size={22} />
+            <strong>Nenhum membro encontrado</strong>
+            <span>Tente outro termo ou remova os filtros.</span>
+          </div>
+        ) : null}
+      </section>
+
+      {editingMember ? (
+        <EditMemberSheet
+          closeEditMember={closeEditMember}
+          editDescription={editDescription}
+          editKind={editKind}
+          editName={editName}
+          editPhone={editPhone}
+          saveEditedMember={saveEditedMember}
+          setActiveTab={setActiveTab}
+          setEditDescription={setEditDescription}
+          setEditKind={setEditKind}
+          setEditName={setEditName}
+          setEditPhone={setEditPhone}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function EditMemberSheet({
+  closeEditMember,
+  editDescription,
+  editKind,
+  editName,
+  editPhone,
+  saveEditedMember,
+  setActiveTab,
+  setEditDescription,
+  setEditKind,
+  setEditName,
+  setEditPhone,
+}: {
+  closeEditMember: () => void;
+  editDescription: string;
+  editKind: MemberKind;
+  editName: string;
+  editPhone: string;
+  saveEditedMember: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  setActiveTab: (tab: ActiveTab) => void;
+  setEditDescription: (value: string) => void;
+  setEditKind: (value: MemberKind) => void;
+  setEditName: (value: string) => void;
+  setEditPhone: (value: string) => void;
+}) {
+  return (
+    <div className="edit-overlay" role="dialog" aria-modal="true" aria-label="Editar membro">
+      <button className="edit-scrim" type="button" onClick={closeEditMember} aria-label="Fechar edição" />
+      <form className="edit-sheet" onSubmit={saveEditedMember}>
+        <div className="sheet-handle" />
+        <header className="edit-sheet-header">
+          <h2>Editar membro</h2>
+          <button className="sheet-close" type="button" onClick={closeEditMember} aria-label="Fechar">
+            <X size={18} />
+          </button>
+        </header>
+
+        <label className="field-group">
+          <span>Nome completo</span>
+          <div className="input-shell">
+            <Badge size={18} />
+            <input value={editName} onChange={(event) => setEditName(event.target.value)} />
+          </div>
+        </label>
+
+        <label className="field-group">
+          <span>Telefone</span>
+          <div className="input-shell">
+            <Phone size={18} />
+            <input
+              value={editPhone}
+              onChange={(event) => setEditPhone(event.target.value)}
+              inputMode="tel"
+            />
+          </div>
+        </label>
+
+        <fieldset className="kind-picker edit-kind-picker" aria-label="Categoria do membro">
+          {memberKinds.map((item) => (
+            <button
+              className={item === editKind ? "kind-chip active" : "kind-chip"}
+              key={item}
+              onClick={() => setEditKind(item)}
+              type="button"
+            >
+              {item === "Convidado" ? "Convid." : item}
+            </button>
+          ))}
+        </fieldset>
+
+        <label className="field-group">
+          <span>Descrição do membro</span>
+          <textarea
+            className="textarea-shell"
+            value={editDescription}
+            onChange={(event) => setEditDescription(event.target.value)}
+            rows={3}
+          />
+        </label>
+
+        <div className="edit-actions">
+          <button type="button" onClick={closeEditMember}>
+            Cancelar
+          </button>
+          <button type="submit">
+            <Check size={18} />
+            Salvar alterações
+          </button>
+        </div>
+        <button className="secondary-sheet-action" type="button" onClick={() => setActiveTab("presenca")}>
+          <UserCheck size={16} />
+          Marcar presença
+        </button>
+      </form>
     </div>
   );
 }
@@ -746,6 +1072,15 @@ function BottomNavigation({
     <nav className="bottom-nav" aria-label="Navegacao principal">
       <div className="bottom-pill">
         <button
+          className={activeTab === "resumo" ? "tab active" : "tab"}
+          type="button"
+          onClick={() => setActiveTab("resumo")}
+          aria-current={activeTab === "resumo" ? "page" : undefined}
+        >
+          <Badge size={18} />
+          <span>Resumo</span>
+        </button>
+        <button
           className={activeTab === "cadastro" ? "tab active" : "tab"}
           type="button"
           onClick={() => setActiveTab("cadastro")}
@@ -764,13 +1099,13 @@ function BottomNavigation({
           <span>Presenca</span>
         </button>
         <button
-          className={activeTab === "resumo" ? "tab active" : "tab"}
+          className={activeTab === "membros" ? "tab active" : "tab"}
           type="button"
-          onClick={() => setActiveTab("resumo")}
-          aria-current={activeTab === "resumo" ? "page" : undefined}
+          onClick={() => setActiveTab("membros")}
+          aria-current={activeTab === "membros" ? "page" : undefined}
         >
-          <Badge size={18} />
-          <span>Resumo</span>
+          <Users size={18} />
+          <span>Membros</span>
         </button>
       </div>
     </nav>

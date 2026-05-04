@@ -562,6 +562,226 @@ h2 {
   line-height: 1.4;
 }
 
+.members-content {
+  gap: 12px;
+}
+
+.count-badge {
+  width: 52px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  gap: 0;
+  background: var(--surface-panel);
+  border: 1px solid #343454;
+  border-radius: 8px;
+}
+
+.count-badge strong {
+  color: var(--accent-tertiary);
+  font-family: "Geist Mono", monospace;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.count-badge span {
+  color: var(--foreground-muted);
+  font-family: "Funnel Sans", Geist, sans-serif;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.db-chip,
+.result-summary {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--accent-tertiary);
+  background: #10101d;
+  border: 1px solid #343454;
+  border-radius: 999px;
+}
+
+.db-chip span,
+.result-summary span {
+  color: var(--foreground-secondary);
+  font-family: "Funnel Sans", Geist, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.result-summary {
+  min-height: 42px;
+  background: #0f172a;
+  border-color: #1e293b;
+  border-radius: 8px;
+}
+
+.member-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.member-filters button {
+  height: 36px;
+  color: var(--foreground-secondary);
+  background: var(--surface-panel);
+  border: 1px solid #2a2a44;
+  border-radius: 999px;
+  font-family: "Funnel Sans", Geist, sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.member-filters button.active {
+  color: var(--foreground-primary);
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.member-search-list {
+  display: grid;
+  gap: 8px;
+}
+
+.member-search-row {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  color: inherit;
+  background: var(--surface-panel);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.member-search-row.selected {
+  border-color: #343454;
+}
+
+.member-search-row > div:nth-child(2) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.member-search-row strong {
+  overflow: hidden;
+  color: var(--foreground-primary);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-search-row span:not(.row-chevron) {
+  overflow: hidden;
+  color: var(--foreground-muted);
+  font-family: "Funnel Sans", Geist, sans-serif;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-search-row small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--foreground-secondary);
+  font-size: 11px;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.row-chevron {
+  color: var(--foreground-muted);
+  font-size: 20px;
+}
+
+.edit-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+}
+
+.edit-scrim {
+  position: absolute;
+  inset: 0;
+  background: #00000099;
+  border: 0;
+}
+
+.edit-sheet {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px 24px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -12px 24px #000000b3;
+}
+
+.edit-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.edit-sheet-header h2 {
+  font-size: 18px;
+}
+
+.edit-kind-picker {
+  margin-top: 2px;
+}
+
+.edit-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.edit-actions button,
+.secondary-sheet-action {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.edit-actions button:first-child {
+  color: var(--foreground-secondary);
+  background: #0d0d18;
+  border: 1px solid var(--border-subtle);
+}
+
+.edit-actions button:last-child {
+  color: var(--foreground-primary);
+  background: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+}
+
+.secondary-sheet-action {
+  color: var(--foreground-primary);
+  background: var(--surface-panel);
+  border: 1px solid #343454;
+}
+
 .summary-empty {
   margin-top: 16px;
 }
@@ -934,7 +1154,7 @@ h2 {
 .bottom-pill {
   height: 62px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   background: #11111e;
@@ -957,7 +1177,7 @@ h2 {
 
 .tab span {
   font-family: "Funnel Sans", Geist, sans-serif;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
