@@ -13,16 +13,104 @@ type MemberPayload = {
 
 const allowedKinds = new Set(["Adulto", "Jovem", "Convidado"]);
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const sql = getSql();
-    const rows = (await sql`
-      SELECT id, name, phone, kind, region, description
-      FROM members
-      ORDER BY id DESC
-    `) as MemberRow[];
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search")?.trim() ?? "";
+    const kindParam = searchParams.get("kind");
+    const kind = kindParam && allowedKinds.has(kindParam) ? (kindParam as MemberRow["kind"]) : null;
+    const limitParam = Number(searchParams.get("limit"));
+    const offsetParam = Number(searchParams.get("offset"));
+    const hasPaginationRequest =
+      searchParams.has("limit") || searchParams.has("offset") || search.length > 0 || Boolean(kind);
 
-    return NextResponse.json(rows.map(normalizeMember));
+    if (!hasPaginationRequest) {
+      const rows = (await sql`
+        SELECT id, name, phone, kind, region, description
+        FROM members
+        ORDER BY id DESC
+      `) as MemberRow[];
+
+      return NextResponse.json(rows.map(normalizeMember));
+    }
+
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 12;
+    const offset = Number.isFinite(offsetParam) ? Math.max(offsetParam, 0) : 0;
+    const searchPattern = `%${search}%`;
+
+    const rows = kind
+      ? search
+        ? ((await sql`
+            SELECT id, name, phone, kind, region, description
+            FROM members
+            WHERE kind = ${kind}
+              AND CONCAT_WS(' ', name, COALESCE(phone, ''), kind, COALESCE(region, ''), COALESCE(description, ''))
+                ILIKE ${searchPattern}
+            ORDER BY id DESC
+            LIMIT ${limit}
+            OFFSET ${offset}
+          `) as MemberRow[])
+        : ((await sql`
+            SELECT id, name, phone, kind, region, description
+            FROM members
+            WHERE kind = ${kind}
+            ORDER BY id DESC
+            LIMIT ${limit}
+            OFFSET ${offset}
+          `) as MemberRow[])
+      : search
+        ? ((await sql`
+            SELECT id, name, phone, kind, region, description
+            FROM members
+            WHERE CONCAT_WS(' ', name, COALESCE(phone, ''), kind, COALESCE(region, ''), COALESCE(description, ''))
+              ILIKE ${searchPattern}
+            ORDER BY id DESC
+            LIMIT ${limit}
+            OFFSET ${offset}
+          `) as MemberRow[])
+        : ((await sql`
+            SELECT id, name, phone, kind, region, description
+            FROM members
+            ORDER BY id DESC
+            LIMIT ${limit}
+            OFFSET ${offset}
+          `) as MemberRow[]);
+
+    const totalRows = kind
+      ? search
+        ? ((await sql`
+            SELECT COUNT(*)::int AS count
+            FROM members
+            WHERE kind = ${kind}
+              AND CONCAT_WS(' ', name, COALESCE(phone, ''), kind, COALESCE(region, ''), COALESCE(description, ''))
+                ILIKE ${searchPattern}
+          `) as { count: number }[])
+        : ((await sql`
+            SELECT COUNT(*)::int AS count
+            FROM members
+            WHERE kind = ${kind}
+          `) as { count: number }[])
+      : search
+        ? ((await sql`
+            SELECT COUNT(*)::int AS count
+            FROM members
+            WHERE CONCAT_WS(' ', name, COALESCE(phone, ''), kind, COALESCE(region, ''), COALESCE(description, ''))
+              ILIKE ${searchPattern}
+          `) as { count: number }[])
+        : ((await sql`
+            SELECT COUNT(*)::int AS count
+            FROM members
+          `) as { count: number }[]);
+
+    const items = rows.map(normalizeMember);
+    const totalCount = totalRows[0]?.count ?? 0;
+
+    return NextResponse.json({
+      items,
+      totalCount,
+      hasMore: offset + items.length < totalCount,
+    });
   } catch (error) {
     return handleRouteError(error);
   }

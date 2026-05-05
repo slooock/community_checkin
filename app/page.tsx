@@ -34,6 +34,7 @@ type ActiveTab = "resumo" | "cadastro" | "presenca" | "membros";
 type MemberFilter = "Todos" | MemberKind;
 
 const memberKinds: MemberKind[] = ["Adulto", "Jovem", "Convidado"];
+const membersPageSize = 12;
 
 function getTodayDate() {
   const now = new Date();
@@ -52,6 +53,10 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [memberSearch, setMemberSearch] = useState("");
   const [memberFilter, setMemberFilter] = useState<MemberFilter>("Todos");
+  const [memberResults, setMemberResults] = useState<Member[]>([]);
+  const [memberResultsCount, setMemberResultsCount] = useState(0);
+  const [memberHasMore, setMemberHasMore] = useState(true);
+  const [isMemberPageLoading, setIsMemberPageLoading] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -76,20 +81,6 @@ export default function Home() {
         .includes(term),
     );
   }, [members, search]);
-  const searchedMembers = useMemo(() => {
-    const term = memberSearch.trim().toLowerCase();
-    return members.filter((member) => {
-      const matchesKind = memberFilter === "Todos" || member.kind === memberFilter;
-      const matchesSearch =
-        !term ||
-        [member.name, member.phone, member.kind, member.region, member.description]
-          .join(" ")
-          .toLowerCase()
-          .includes(term);
-
-      return matchesKind && matchesSearch;
-    });
-  }, [members, memberFilter, memberSearch]);
   const presentIds = useMemo(
     () => new Set(attendanceByDate[selectedDate] ?? []),
     [attendanceByDate, selectedDate],
@@ -150,6 +141,105 @@ export default function Home() {
       ignore = true;
     };
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (activeTab !== "membros") return;
+
+    let ignore = false;
+
+    async function loadInitialMemberPage() {
+      setIsMemberPageLoading(true);
+      try {
+        const params = new URLSearchParams({
+          limit: String(membersPageSize),
+          offset: "0",
+        });
+
+        if (memberSearch.trim()) {
+          params.set("search", memberSearch.trim());
+        }
+
+        if (memberFilter !== "Todos") {
+          params.set("kind", memberFilter);
+        }
+
+        const response = await fetch(`/api/members?${params.toString()}`);
+        if (!response.ok) throw new Error("members-page");
+
+        const data = (await response.json()) as {
+          items: Member[];
+          totalCount: number;
+          hasMore: boolean;
+        };
+
+        if (!ignore) {
+          setMemberResults(data.items);
+          setMemberResultsCount(data.totalCount);
+          setMemberHasMore(data.hasMore);
+          setStatusMessage("");
+        }
+      } catch {
+        if (!ignore) {
+          setMemberResults([]);
+          setMemberResultsCount(0);
+          setMemberHasMore(false);
+          setStatusMessage("Nao foi possivel carregar a lista de membros agora.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsMemberPageLoading(false);
+        }
+      }
+    }
+
+    loadInitialMemberPage();
+
+    return () => {
+      ignore = true;
+    };
+  }, [activeTab, memberFilter, memberSearch]);
+
+  async function loadMoreMemberResults() {
+    if (isMemberPageLoading || !memberHasMore) return;
+
+    setIsMemberPageLoading(true);
+    try {
+      const params = new URLSearchParams({
+        limit: String(membersPageSize),
+        offset: String(memberResults.length),
+      });
+
+      if (memberSearch.trim()) {
+        params.set("search", memberSearch.trim());
+      }
+
+      if (memberFilter !== "Todos") {
+        params.set("kind", memberFilter);
+      }
+
+      const response = await fetch(`/api/members?${params.toString()}`);
+      if (!response.ok) throw new Error("members-page-more");
+
+      const data = (await response.json()) as {
+        items: Member[];
+        totalCount: number;
+        hasMore: boolean;
+      };
+
+      setMemberResults((current) => {
+        const knownIds = new Set(current.map((member) => member.id));
+        const nextItems = data.items.filter((member) => !knownIds.has(member.id));
+        return [...current, ...nextItems];
+      });
+      setMemberResultsCount(data.totalCount);
+      setMemberHasMore(data.hasMore);
+      setStatusMessage("");
+    } catch {
+      setStatusMessage("Nao foi possivel carregar mais membros agora.");
+    } finally {
+      setIsMemberPageLoading(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -238,6 +328,7 @@ export default function Home() {
       if (!response.ok) throw new Error("update");
       const saved = (await response.json()) as Member;
       setMembers((current) => current.map((member) => (member.id === saved.id ? saved : member)));
+      setMemberResults((current) => current.map((member) => (member.id === saved.id ? saved : member)));
       setStatusMessage("");
       closeEditMember();
     } catch {
@@ -297,8 +388,10 @@ export default function Home() {
           <MembersSearchScreen
             memberFilter={memberFilter}
             memberSearch={memberSearch}
-            membersCount={members.length}
-            results={searchedMembers}
+            membersCount={memberResultsCount}
+            results={memberResults}
+            hasMore={memberHasMore}
+            isLoadingMore={isMemberPageLoading}
             editingMember={editingMember}
             editDescription={editDescription}
             editKind={editKind}
@@ -313,6 +406,7 @@ export default function Home() {
             setEditPhone={setEditPhone}
             setMemberFilter={setMemberFilter}
             setMemberSearch={setMemberSearch}
+            loadMoreResults={loadMoreMemberResults}
             statusMessage={statusMessage}
           />
         ) : null}
@@ -570,6 +664,9 @@ function MembersSearchScreen({
   editingMember,
   editName,
   editPhone,
+  hasMore,
+  isLoadingMore,
+  loadMoreResults,
   memberFilter,
   memberSearch,
   membersCount,
@@ -590,6 +687,9 @@ function MembersSearchScreen({
   editingMember: Member | null;
   editName: string;
   editPhone: string;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  loadMoreResults: () => void | Promise<void>;
   memberFilter: MemberFilter;
   memberSearch: string;
   membersCount: number;
@@ -611,7 +711,7 @@ function MembersSearchScreen({
 
   useEffect(() => {
     const sentinelElement = sentinelRef.current;
-    if (!sentinelElement) return;
+    if (!sentinelElement || !hasMore) return;
 
     const observer = new IntersectionObserver(([entry]) => {
       const isVisible = entry?.isIntersecting ?? false;
@@ -619,6 +719,7 @@ function MembersSearchScreen({
 
       if (isVisible) {
         console.log("Visivel");
+        void loadMoreResults();
       }
     });
 
@@ -627,7 +728,7 @@ function MembersSearchScreen({
     return () => {
       observer.disconnect();
     };
-  }, [results.length]);
+  }, [hasMore, loadMoreResults, results.length]);
 
   return (
     <div className="content-wrapper members-content">
@@ -711,7 +812,13 @@ function MembersSearchScreen({
             className={`member-list-sentinel ${isSentinelVisible ? "visible" : ""}`}
             aria-label="Sentinela do final da lista"
           >
-            {isSentinelVisible ? "Fim da lista visivel" : "Role ate o fim da lista"}
+            {isLoadingMore
+              ? "Carregando mais membros..."
+              : hasMore
+                ? isSentinelVisible
+                  ? "Fim da lista visivel"
+                  : "Role ate o fim da lista"
+                : "Todos os membros foram carregados"}
           </div>
         ) : null}
       </section>
