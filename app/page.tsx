@@ -538,23 +538,6 @@ function RegistrationScreen({
             </button>
           </form>
 
-          <section className="recent-section" aria-labelledby="recent-title">
-            <h2 id="recent-title">Ultimos cadastrados</h2>
-            <div className="recent-list">
-              {members.slice(0, 3).map((member) => (
-                <article className="member-row" key={member.id}>
-                  <div className="avatar small">{getInitials(member.name)}</div>
-                  <div>
-                    <strong>{member.name}</strong>
-                    <span>
-                      {member.kind} · {member.region}
-                    </span>
-                    {member.description ? <small>{member.description}</small> : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
     </div>
   );
 }
