@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Check,
   CirclePlus,
+  MessageCircle,
   X,
   Info,
   Phone,
@@ -64,11 +65,11 @@ export default function Home() {
   const [editKind, setEditKind] = useState<MemberKind>("Adulto");
   const [selectedDate, setSelectedDate] = useState(() => getTodayDate());
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isAbsentListOpen, setIsAbsentListOpen] = useState(false);
+  const [selectedAbsentIds, setSelectedAbsentIds] = useState<number[]>([]);
   const [attendanceByDate, setAttendanceByDate] = useState<Record<string, number[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
-  const shouldShowBottomNavigation = !isDatePickerOpen && !editingMember;
-
   const initials = useMemo(() => getInitials(name || "Novo membro"), [name]);
   const filteredMembers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -85,8 +86,17 @@ export default function Home() {
     () => new Set(attendanceByDate[selectedDate] ?? []),
     [attendanceByDate, selectedDate],
   );
+  const presentMembers = useMemo(
+    () => members.filter((member) => presentIds.has(member.id)),
+    [members, presentIds],
+  );
+  const absentMembers = useMemo(
+    () => members.filter((member) => !presentIds.has(member.id)),
+    [members, presentIds],
+  );
   const presentCount = presentIds.size;
   const progress = members.length > 0 ? Math.round((presentCount / members.length) * 100) : 0;
+  const shouldShowBottomNavigation = !isDatePickerOpen && !editingMember && !isAbsentListOpen;
 
   useEffect(() => {
     let ignore = false;
@@ -336,6 +346,58 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    setSelectedAbsentIds((current) => current.filter((memberId) => absentMembers.some((member) => member.id === memberId)));
+  }, [absentMembers]);
+
+  function openAbsentList() {
+    setSelectedAbsentIds(absentMembers.map((member) => member.id));
+    setIsAbsentListOpen(true);
+  }
+
+  function closeAbsentList() {
+    setIsAbsentListOpen(false);
+  }
+
+  function toggleAbsentSelection(memberId: number) {
+    setSelectedAbsentIds((current) =>
+      current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId],
+    );
+  }
+
+  function selectAllAbsentMembers() {
+    setSelectedAbsentIds(absentMembers.map((member) => member.id));
+  }
+
+  function clearAllAbsentMembers() {
+    setSelectedAbsentIds([]);
+  }
+
+  function sendWhatsAppToSelected() {
+    const selectedMembers = absentMembers.filter((member) => selectedAbsentIds.includes(member.id));
+    if (selectedMembers.length === 0) return;
+
+    selectedMembers.forEach((member, index) => {
+      const phone = member.phone.replace(/\D/g, "");
+      if (!phone) return;
+
+      const message = [
+        `Oi, ${member.name}.`,
+        "",
+        `Sentimos sua falta no encontro de ${formatDate(selectedDate)}.`,
+        "Quando puder, nos responde para sabermos se esta tudo bem com voce.",
+      ].join("\n");
+
+      window.setTimeout(() => {
+        window.open(
+          `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`,
+          "_blank",
+          "noopener,noreferrer",
+        );
+      }, index * 150);
+    });
+  }
+
   return (
     <main className="phone-shell" aria-label="Aplicacao de comunidade">
       <section className="mobile-screen">
@@ -373,15 +435,29 @@ export default function Home() {
         ) : null}
 
         {activeTab === "resumo" ? (
-          <SummaryScreen
-            members={members}
-            attendanceByDate={attendanceByDate}
-            isDatePickerOpen={isDatePickerOpen}
-            selectedDate={selectedDate}
-            setIsDatePickerOpen={setIsDatePickerOpen}
-            setSelectedDate={setSelectedDate}
-            statusMessage={statusMessage}
-          />
+          isAbsentListOpen ? (
+            <AbsentMembersScreen
+              absentMembers={absentMembers}
+              closeAbsentList={closeAbsentList}
+              selectedAbsentIds={selectedAbsentIds}
+              selectedDate={selectedDate}
+              selectAllAbsentMembers={selectAllAbsentMembers}
+              clearAllAbsentMembers={clearAllAbsentMembers}
+              sendWhatsAppToSelected={sendWhatsAppToSelected}
+              toggleAbsentSelection={toggleAbsentSelection}
+            />
+          ) : (
+            <SummaryScreen
+              absentMembers={absentMembers}
+              isDatePickerOpen={isDatePickerOpen}
+              openAbsentList={openAbsentList}
+              presentMembers={presentMembers}
+              selectedDate={selectedDate}
+              setIsDatePickerOpen={setIsDatePickerOpen}
+              setSelectedDate={setSelectedDate}
+              statusMessage={statusMessage}
+            />
+          )
         ) : null}
 
         {activeTab === "membros" ? (
@@ -911,30 +987,27 @@ function EditMemberSheet({
 }
 
 function SummaryScreen({
-  members,
-  attendanceByDate,
+  absentMembers,
   isDatePickerOpen,
+  openAbsentList,
+  presentMembers,
   selectedDate,
   setIsDatePickerOpen,
   setSelectedDate,
   statusMessage,
 }: {
-  members: Member[];
-  attendanceByDate: Record<string, number[]>;
+  absentMembers: Member[];
   isDatePickerOpen: boolean;
+  openAbsentList: () => void;
+  presentMembers: Member[];
   selectedDate: string;
   setIsDatePickerOpen: (value: boolean) => void;
   setSelectedDate: (value: string) => void;
   statusMessage: string;
 }) {
-  const presentIds = useMemo(
-    () => new Set(attendanceByDate[selectedDate] ?? []),
-    [attendanceByDate, selectedDate],
-  );
-  const presentMembers = members.filter((member) => presentIds.has(member.id));
-  const absentMembers = members.filter((member) => !presentIds.has(member.id));
-  const absentCount = Math.max(members.length - presentMembers.length, 0);
-  const percent = members.length > 0 ? Math.round((presentMembers.length / members.length) * 100) : 0;
+  const membersCount = presentMembers.length + absentMembers.length;
+  const absentCount = Math.max(membersCount - presentMembers.length, 0);
+  const percent = membersCount > 0 ? Math.round((presentMembers.length / membersCount) * 100) : 0;
   const distribution = memberKinds.map((kind) => ({
     kind,
     count: presentMembers.filter((member) => member.kind === kind).length,
@@ -946,7 +1019,7 @@ function SummaryScreen({
       absentCount,
       absentMembers,
       distribution,
-      membersCount: members.length,
+      membersCount,
       percent,
       presentMembers,
       selectedDate,
@@ -987,10 +1060,10 @@ function SummaryScreen({
           <span className="came">Vieram</span>
           <strong>{presentMembers.length}</strong>
         </article>
-        <article>
+        <button className="summary-stat-button" type="button" onClick={openAbsentList}>
           <span className="absent">Ausentes</span>
           <strong>{absentCount}</strong>
-        </article>
+        </button>
       </section>
 
       <section className="distribution-card" aria-labelledby="distribution-title">
@@ -1023,6 +1096,121 @@ function SummaryScreen({
           onClose={() => setIsDatePickerOpen(false)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function AbsentMembersScreen({
+  absentMembers,
+  clearAllAbsentMembers,
+  closeAbsentList,
+  selectedAbsentIds,
+  selectedDate,
+  selectAllAbsentMembers,
+  sendWhatsAppToSelected,
+  toggleAbsentSelection,
+}: {
+  absentMembers: Member[];
+  clearAllAbsentMembers: () => void;
+  closeAbsentList: () => void;
+  selectedAbsentIds: number[];
+  selectedDate: string;
+  selectAllAbsentMembers: () => void;
+  sendWhatsAppToSelected: () => void;
+  toggleAbsentSelection: (memberId: number) => void;
+}) {
+  const selectedCount = selectedAbsentIds.length;
+  const allSelected = absentMembers.length > 0 && selectedCount === absentMembers.length;
+  const noneSelected = selectedCount === 0;
+
+  return (
+    <div className="absent-screen-shell">
+      <div className="content-wrapper absent-content">
+        <header className="screen-header absent-header">
+          <button
+            className="back-chip back-chip-floating"
+            type="button"
+            onClick={closeAbsentList}
+            aria-label="Voltar para o resumo"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div className="absent-header-copy">
+            <h1>Ausentes</h1>
+          </div>
+        </header>
+
+        <div className="date-picker absent-date-chip">
+          <CalendarDays size={18} />
+          <span>{formatDate(selectedDate)}</span>
+          <MessageCircle size={16} className="absent-date-icon" />
+        </div>
+
+        <div className="bulk-actions" aria-label="Acoes em massa">
+          <button
+            className={allSelected ? "bulk-action active" : "bulk-action"}
+            type="button"
+            onClick={selectAllAbsentMembers}
+            aria-pressed={allSelected}
+          >
+            Selecionar todos
+          </button>
+          <button
+            className={noneSelected ? "bulk-action active" : "bulk-action"}
+            type="button"
+            onClick={clearAllAbsentMembers}
+            aria-pressed={noneSelected}
+          >
+            Desselecionar todos
+          </button>
+        </div>
+
+        <section className="absent-members-list" aria-label="Lista de ausentes">
+          {absentMembers.map((member) => {
+            const isSelected = selectedAbsentIds.includes(member.id);
+
+            return (
+              <button
+                className={isSelected ? "absent-member-row selected" : "absent-member-row"}
+                key={member.id}
+                type="button"
+                onClick={() => toggleAbsentSelection(member.id)}
+              >
+                <div className={`avatar small avatar-${member.kind.toLowerCase()}`}>{getInitials(member.name)}</div>
+                <div className="absent-member-info">
+                  <strong>{member.name}</strong>
+                  <span>{member.phone || "Sem telefone"}</span>
+                  <span className={`member-kind kind-${member.kind.toLowerCase()}`}>{member.kind}</span>
+                  <small>{member.description || "Sem observacoes adicionais."}</small>
+                </div>
+                <div className={isSelected ? "selection-indicator checked" : "selection-indicator"}>
+                  {isSelected ? <Check size={16} /> : null}
+                </div>
+              </button>
+            );
+          })}
+
+          {absentMembers.length === 0 ? (
+            <div className="empty-state summary-empty">
+              <Check size={22} />
+              <strong>Todos vieram</strong>
+              <span>Nao ha membros ausentes nesta data.</span>
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      <div className="absent-footer">
+        <button
+          className="whatsapp-cta"
+          type="button"
+          onClick={sendWhatsAppToSelected}
+          disabled={selectedCount === 0}
+        >
+          <MessageCircle size={18} />
+          Enviar WhatsApp para {selectedCount} selecionados
+        </button>
+      </div>
     </div>
   );
 }
