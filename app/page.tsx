@@ -17,7 +17,7 @@ import {
   UserCheck,
   UserPlus,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type MemberKind = "Adulto" | "Jovem" | "Convidado";
 
@@ -606,6 +606,28 @@ function MembersSearchScreen({
 }) {
   const guestCount = results.filter((member) => member.kind === "Convidado").length;
   const filters: MemberFilter[] = ["Todos", "Adulto", "Jovem", "Convidado"];
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [isSentinelVisible, setIsSentinelVisible] = useState(false);
+
+  useEffect(() => {
+    const sentinelElement = sentinelRef.current;
+    if (!sentinelElement) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      const isVisible = entry?.isIntersecting ?? false;
+      setIsSentinelVisible(isVisible);
+
+      if (isVisible) {
+        console.log("Visivel");
+      }
+    });
+
+    observer.observe(sentinelElement);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [results.length]);
 
   return (
     <div className="content-wrapper members-content">
@@ -657,7 +679,7 @@ function MembersSearchScreen({
       </div>
 
       <section className="member-search-list" aria-label="Resultados da busca">
-        {results.slice(0, 5).map((member) => (
+        {results.map((member) => (
           <button
             className={editingMember?.id === member.id ? "member-search-row selected" : "member-search-row"}
             key={member.id}
@@ -680,6 +702,16 @@ function MembersSearchScreen({
             <Users size={22} />
             <strong>Nenhum membro encontrado</strong>
             <span>Tente outro termo ou remova os filtros.</span>
+          </div>
+        ) : null}
+
+        {results.length > 0 ? (
+          <div
+            ref={sentinelRef}
+            className={`member-list-sentinel ${isSentinelVisible ? "visible" : ""}`}
+            aria-label="Sentinela do final da lista"
+          >
+            {isSentinelVisible ? "Fim da lista visivel" : "Role ate o fim da lista"}
           </div>
         ) : null}
       </section>
