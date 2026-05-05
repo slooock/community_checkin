@@ -659,6 +659,29 @@ h2 {
   gap: 8px;
 }
 
+.member-list-sentinel {
+  min-height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  color: #fff;
+  background: #b91c1c;
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  font-family: "Funnel Sans", Geist, sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.member-list-sentinel.visible {
+  background: #15803d;
+  border-color: #22c55e;
+}
+
 .member-search-row {
   min-height: 82px;
   display: flex;
