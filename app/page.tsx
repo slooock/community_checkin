@@ -812,13 +812,7 @@ function MembersSearchScreen({
             className={`member-list-sentinel ${isSentinelVisible ? "visible" : ""}`}
             aria-label="Sentinela do final da lista"
           >
-            {isLoadingMore
-              ? "Carregando mais membros..."
-              : hasMore
-                ? isSentinelVisible
-                  ? "Fim da lista visivel"
-                  : "Role ate o fim da lista"
-                : "Todos os membros foram carregados"}
+            {!hasMore ? "Voce chegou ao fim da lista de membros." : null}
           </div>
         ) : null}
       </section>
@@ -1038,53 +1032,6 @@ function SummaryScreen({
         <Share2 size={18} />
         Salvar resumo em PDF
       </button>
-
-      <section className="present-mini-list" aria-label="Presentes recentes">
-        <h2>Presentes</h2>
-        {presentMembers.length > 0 ? (
-          <div className="recent-list">
-            {presentMembers.slice(0, 3).map((member) => (
-              <article className="member-row" key={member.id}>
-                <div className="avatar small">{getInitials(member.name)}</div>
-                <div>
-                  <strong>{member.name}</strong>
-                  <span>{member.kind} · Confirmado</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state compact-empty">
-            <UserCheck size={22} />
-            <strong>Ninguem marcado ainda</strong>
-            <span>Use a aba Presenca para marcar quem chegou.</span>
-          </div>
-        )}
-      </section>
-
-      <section className="absent-mini-list" aria-label="Membros ausentes">
-        <h2>Ausentes</h2>
-        {absentMembers.length > 0 ? (
-          <div className="recent-list">
-            {absentMembers.slice(0, 4).map((member) => (
-              <article className="member-row absent-row" key={member.id}>
-                <div className="avatar small muted-avatar">{getInitials(member.name)}</div>
-                <div>
-                  <strong>{member.name}</strong>
-                  <span>{member.kind} · Ausente</span>
-                  {member.description ? <small>{member.description}</small> : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state compact-empty">
-            <Check size={22} />
-            <strong>Todos vieram</strong>
-            <span>Nao ha membros ausentes nesta data.</span>
-          </div>
-        )}
-      </section>
 
       {isDatePickerOpen ? (
         <DatePickerSheet
